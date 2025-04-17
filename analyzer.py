@@ -5,18 +5,46 @@ import json
 import re
 
 class DataAnalyzer:
-    def __init__(self, key, data):
+    def __init__(self, key, data, null=False, dup=False, index=False):
+        self.null = null
+        self.dup = dup
+        self.index = index
         self.data = data
         self.key = key
         self.client = OpenAI(api_key=self.key)
-        self.df = self.load_clean_data()
+        self.df = self.load_data(drop_na=null, drop_dup=dup, reset_index=index)
         self.prompt_manager = self.PromptManager(self)
+    
+    def data_report_builder(self):
+        df = self.load_data(drop_na=self.null,drop_dup=self.dup, reset_index=self.index, reset_data=True)
+        total_null = df.isna().sum()
+        total_duplicated = df.duplicated().sum()
+        data_len = len(df)
+        st.markdown(f"**Total Rows:** {data_len}")
+        st.markdown(f"**Total Duplicate Rows:** {total_duplicated}")
+        null_report = pd.DataFrame(
+            {
+                "Column": total_null.index,
+                "Missing Values": total_null.values,
+                "% Missing": (total_null.values / data_len * 100).round(2)
+            }
+        )
+        st.dataframe(null_report[null_report["Missing Values"] > 0])
 
-    def load_clean_data(self):
+
+    def load_data(self, drop_na=True, drop_dup=True, reset_index=True, reset_data=False):
+        if reset_data:
+            self.data.seek(0)
+
         df = pd.read_csv(self.data)
-        df.dropna(inplace=True)
-        df.drop_duplicates(inplace=True)
-        df.reset_index(drop=True, inplace=True)
+
+        if drop_na:
+            df.dropna(inplace=True)
+        if drop_dup:
+            df.drop_duplicates(inplace=True)
+        if reset_index:
+            df.reset_index(drop=True, inplace=True)
+
         return df
 
     def ai_summary(self):
@@ -86,6 +114,7 @@ class DataAnalyzer:
 
     def data_preview(self, n=20):
         return self.df.head(n)
+
 
     # This is where all the prompts will be managed and placed
     class PromptManager:

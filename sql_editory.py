@@ -6,28 +6,24 @@ import sqlite3
 class SQLEditor:
     def __init__(self, uploaded_data):
         self.uploaded_data = uploaded_data
-        try:
-            self.df = pd.read_csv(self.uploaded_data)
-            print("Uploaded: ", self.df)
-            self.table_name = uploaded_data.name.split(".")[0]  # fix: use .name for file object
-        except Exception as e:
-            st.error(f"Failed to load CSV: {e}")
+        self.df = pd.read_csv(self.uploaded_data)
+        self.table_name = self.uploaded_data.name.split(".")[0]  # fix: use .name for file object
 
-    def data_preview(self, n=100):
-        if hasattr(self, "df"):
-            st.write("Preview of uploaded data")
-            st.dataframe(self.df.head(n))
+    def table_info(self, n=100):
+        st.subheader('📁 Table Info')
+        st.markdown(f"**Table Name:** `{self.table_name}`")
+        col_info = pd.DataFrame({
+            "Column Name:": self.df.columns,
+            "Data Types": [str(dtype) for dtype in self.df.dtypes]
+        })
+        st.dataframe(col_info)
 
     def create_connection(self):
-        if hasattr(self, "df"):
-            self.connection = sqlite3.connect(":memory:")
-            self.cursor = self.connection.cursor()
-            self.df.to_sql(self.table_name, self.connection, index=False, if_exists="replace")
+        self.connection = sqlite3.connect(":memory:")
+        self.cursor = self.connection.cursor()
+        self.df.to_sql(self.table_name, self.connection, index=False, if_exists="replace")
 
     def create_code_editor(self):
-        if not hasattr(self, "df"):
-            return
-
         default_sql = f"SELECT * FROM {self.table_name} LIMIT 10;"
 
         sql_query = st_ace(

@@ -1,0 +1,6 @@
+streamlit
+streamlit-ace
+pandas
+openai
+plotly
+matplotlib

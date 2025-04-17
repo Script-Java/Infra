@@ -1,0 +1,33 @@
+# ⛔ Python
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+*.pyo
+*.pyd
+
+# ⛔ Environments
+venv/
+.env
+.env.*
+
+# ⛔ Jupyter
+.ipynb_checkpoints/
+
+# ⛔ OS files
+.DS_Store
+Thumbs.db
+
+# ⛔ Streamlit uploads
+*.csv
+*.xlsx
+*.json
+*.parquet
+
+# ⛔ VS Code / PyCharm
+.vscode/
+.idea/
+
+# ⛔ Logs & Cache
+*.log
+.cache/
