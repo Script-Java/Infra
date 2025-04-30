@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import json
 import re
+import sqlite3
 
 class DataAnalyzer:
     def __init__(self, key, data, null=False, dup=False, index=False):
@@ -14,45 +15,54 @@ class DataAnalyzer:
         self.client = OpenAI(api_key=self.key)
         self.df = self.load_data(drop_na=null, drop_dup=dup, reset_index=index)
         self.prompt_manager = self.PromptManager(self)
-    
+
     def data_report_builder(self):
-        df = self.load_data(drop_na=self.null,drop_dup=self.dup, reset_index=self.index, reset_data=True)
+        df = self.load_data(drop_na=self.null, drop_dup=self.dup, reset_index=self.index, reset_data=True)
         total_null = df.isna().sum()
         total_duplicated = df.duplicated().sum()
         data_len = len(df)
         st.markdown(f"**Total Rows:** {data_len}")
         st.markdown(f"**Total Duplicate Rows:** {total_duplicated}")
-        null_report = pd.DataFrame(
-            {
-                "Column": total_null.index,
-                "Missing Values": total_null.values,
-                "% Missing": (total_null.values / data_len * 100).round(2)
-            }
-        )
+        null_report = pd.DataFrame({
+            "Column": total_null.index,
+            "Missing Values": total_null.values,
+            "% Missing": (total_null.values / data_len * 100).round(2)
+        })
         st.dataframe(null_report[null_report["Missing Values"] > 0])
-
 
     def load_data(self, drop_na=True, drop_dup=True, reset_index=True, reset_data=False):
         if reset_data:
             self.data.seek(0)
 
-        df = pd.read_csv(self.data)
+        if self.data.name.endswith('.csv'):
+            self.df = pd.read_csv(self.data)
+        elif self.data.name.endswith('.xlsx'):
+            self.df = pd.read_excel(self.data)
+        elif self.data.name.endswith('.json'):
+            self.df = pd.read_json(self.data)
+        elif self.data.name.endswith('.parquet'):
+            self.df = pd.read_parquet(self.data)
+        elif self.data.name.endswith('.db') or self.data.name.endswith('.sqlite'):
+            conn = sqlite3.connect(self.data.name)
+            self.df = pd.read_sql_query("SELECT * FROM your_table", conn)
+        elif self.data.name.endswith('.txt'):
+            self.df = pd.read_csv(self.data, delimiter="\t")
+        else:
+            st.error("Unsupported file format.")
 
         if drop_na:
-            df.dropna(inplace=True)
+            self.df.dropna(inplace=True)
         if drop_dup:
-            df.drop_duplicates(inplace=True)
+            self.df.drop_duplicates(inplace=True)
         if reset_index:
-            df.reset_index(drop=True, inplace=True)
+            self.df.reset_index(drop=True, inplace=True)
 
-        return df
+        return self.df
 
     def ai_summary(self):
-        #prompt is pulled from the prompt manager
         prompt = self.prompt_manager.data_summary_prompt()
-
         response = self.client.chat.completions.create(
-            model = "gpt-3.5-turbo",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful AI data analyst."},
                 {"role": "user", "content": prompt}
@@ -61,10 +71,9 @@ class DataAnalyzer:
         return response.choices[0].message.content
 
     def ai_json(self):
-        # here we are generating another data but from a dynamic prompt
         prompt = self.prompt_manager.data_json_prompt()
         response = self.client.chat.completions.create(
-            model = "gpt-4-turbo",
+            model="gpt-4-turbo",
             messages=[
                 {"role": "system", "content": "You're an expert data visualization assistant"},
                 {"role": "user", "content": prompt}
@@ -74,7 +83,6 @@ class DataAnalyzer:
 
         try:
             json_block = re.search(r"\[\s*{.*}\s*\]", content, re.DOTALL).group(0)
-            print("JSON: ", json.loads(json_block))
             return json.loads(json_block)
         except json.JSONDecodeError as e:
             st.error("❌ Failed to parse AI JSON response.")
@@ -115,8 +123,6 @@ class DataAnalyzer:
     def data_preview(self, n=20):
         return self.df.head(n)
 
-
-    # This is where all the prompts will be managed and placed
     class PromptManager:
         def __init__(self, parent):
             self.parent = parent
